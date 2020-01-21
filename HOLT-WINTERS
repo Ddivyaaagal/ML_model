@@ -1,0 +1,59 @@
+from statsmodels.tsa.holtwinters import ExponentialSmoothing
+from sklearn.model_selection import TimeSeriesSplit
+
+list_keys = [ k for k in D_dict ]   #D_dict is dictionary of skus or we can call it the set of data.
+list_values = [ v for v in D_dict.values() ]
+D_list = [[k,v] for k, v in D_dict.items()]
+
+for i in D_dict:
+    D_edit = D_dict[i]
+#     D_edit = D_edit.set_index('ds')
+#     print(D_edit)
+    X = D_edit['y']
+#     print(X)
+    y = D_edit['ds']
+#     print(y)
+    X_train = X[0 : int(len(X) * .80)]               ## spliting the data into train,test in 80:20 proportion
+    X_test = X[ int(len(X) * .80):]
+#     print(X_test)
+
+smape_list_hw=[]
+for i in D_dict:
+    D_edit = D_dict[i]
+    D_edit1 = D_edit.copy()
+    X_train = D_edit[0 : int(len(D_edit) * .80)]
+    X_test = D_edit[ int(len(D_edit) * .80):]
+    X_train,X_test= X_train.set_index('ds'),X_test.set_index('ds')
+    hw_model = ExponentialSmoothing(np.asarray(X_train['y']), seasonal='add', seasonal_periods=7).fit()
+#     hw_pred = hw_model.predict(start= X_test.iloc[1], end=X_test.iloc[-1])
+    hw_pred = hw_model.predict(start= 1, end=24)
+#     print(hw_pred)
+#     print(X_test)
+    
+    new_test = hw_pred[:len(X_test)]
+#     print(new_test)
+#     print(X_test['y'])
+    n = X_test['y'][:len(new_test)]
+#     print(n)
+#     print(hw_pred)
+
+
+                            ### FOR SMAPE CALCULATION ###
+    
+    error = n - new_test
+    abs_error = abs(error)
+    Smape1 = (2*abs_error)/((abs(n.astype(float)))+abs((new_test))) #SMAPE IS CALCULATED at this point for each sku.
+#     print(Smape1) 
+                         ### REPRESETING IN A DATAFRAME ###
+    dev1= pd.concat([Smape1,n],axis=1)
+#     Smape1.plot()
+    dev1.columns = ['smape','y']
+#     print(dev1)
+#     dev1.plot()   ##to plot the smape. 
+
+ 
+    smape_avg_hw = sum(Smape1)/len(dev1['smape'])
+    smape_list_hw.append(smape_avg_hw)
+print(smape_list_hw)
+keys['smape_avg_hw'] = smape_list_hw
+
