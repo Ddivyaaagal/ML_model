@@ -1,0 +1,69 @@
+
+class fb_proph:
+    def __init__(self,params):
+        self.growth = params.get('growth',None)
+        self.seasonality_mode = params.get('seasonality_mode',None)
+        self.interval_width = params.get('interval_width',None)
+        self.mcmc_samples = params.get('mcmc_samples',None)
+        self.yearly_seasonality = params.get('yearly_seasonality',None)
+        self.weekly_seasonality = params.get('weekly_seasonality',None)
+        self.daily_seasonality = params.get('daily_seasonality',None)
+        self.data = data
+#         self.data = params.get('data',None)
+        
+
+        
+    def model_fb(self):
+        data_list = list(self.data.keys())
+        smape_list = []
+        for i in range(len(data_list)):
+            m = Prophet(growth=self.growth,seasonality_mode=self.seasonality_mode,interval_width=self.interval_width,
+                        mcmc_samples=self.mcmc_samples,
+                        yearly_seasonality=self.yearly_seasonality,weekly_seasonality=self.weekly_seasonality,
+                        daily_seasonality=self.daily_seasonality)
+            
+            m.add_seasonality(name='monthly',period=30.5,fourier_order=5,prior_scale=None)
+            m.add_seasonality(name='yearly',period=362.25,fourier_order=10,prior_scale=None)
+#             m.add_seasonality(name='weekly',period = 7 , fourier_order=20,prior_scale=None)
+            
+            m.fit(data[data_list[i]])
+            future = m.make_future_dataframe(periods=12 ,freq = "W-MON",include_history = True)
+            forecast = m.predict(future)
+            F = forecast[['ds', 'yhat','yhat_upper','yhat_lower']]
+#             print(F)
+            FF = F[F['ds'] < '2019-10-14']
+#             print(FF)
+            D1 = FF[['ds','yhat']]    #as i needed these two columns only for calculating the error. i filtered the two out of four.
+#             print(D1)
+
+            D2 = data[data_list[i]][['ds','y']]
+#             print(D2)
+            d = D2['ds'].min()
+            e = D2['ds'].max()
+#             print(d)
+#             print(e)
+
+            Filter = D1[(D1['ds'] > str(d)) & (D1['ds'] < str(e))]
+            Filter = Filter.reset_index()
+            Filter = Filter.drop(columns=['index'])
+#             print(type(Filter))
+
+            filter_indx=list(Filter['ds'])
+            D2['ds']=pd.to_datetime(D2['ds'])
+            new_d = D2[D2['ds'].isin(filter_indx)]
+            new_d = new_d['y']
+        
+            new_d = pd.DataFrame(data=new_d)
+            new_d = new_d.reset_index()
+            new_d = new_d.drop(columns=['index']) 
+            result_1 = pd.concat([Filter, new_d], axis=1, sort=False)
+#             print(result_1)
+            
+            error = result_1['y'] - result_1['yhat']
+            result_1['error'] = error
+#             print(error)
+            abs_error = abs(error)
+            result_1['abs_error']= abs_error
+#             print(abs_error)
+            Smape = (2*abs_error)/((abs(result_1['y'].astype(float))+abs(result_1['yhat'])))
+            result_1['Smape'] = Smape
