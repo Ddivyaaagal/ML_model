@@ -1,0 +1,183 @@
+STEP 1 : PICKING UP RANDOM ITEM ID's and LOCATION's and CREATING 100 SKU_DC.
+
+I = skus['item_mask'].unique()
+d = {}
+for i in range(0,100):
+        sku_j =  skus[(skus['item_mask'] == np.random.choice(I))]
+#         print(sku_j)
+        L = sku_j['loc_mask'].unique()
+        sku_a = sku_j[(skus['loc_mask'] == np.random.choice(L))]
+        d['sku_a'+str(i)] = sku_a
+        
+        
+        
+        
+STEP 2 : prepare a dict and dataframe as this is requrired format for modelling.         
+D_edit=[]
+D_dict = {}
+for i,j in d.items():
+    temp_df = j[['period','order_quantity_ea']]
+    temp_df = temp_df.rename(columns={'period': 'ds', 'order_quantity_ea': 'y'}) 
+    D_dict[i] = D_dict[i].fillna(D_dict[i].mean())  #only if nan values present.
+    D_dict[i]=temp_df 
+    
+    
+    
+    
+    
+STEP 3: FEATURE CREATION from univariate model (it can vary)
+for i in D_dict:
+    D_edit = D_dict[i]
+    D_edit = pd.DataFrame(data=D_edit)
+    col = D_edit['y']
+    for j in range(1,13):
+        D_edit['y_'+str(j)] = col.shift(j)
+#     print(D_edit)
+        for k in range(2,7):
+            D_edit['y_ewm'+str(k)] = col.ewm(com=k).mean()
+            for l in range(3,7):
+                D_edit['y_ewm_std'+str(l)] = col.ewm(com=l).std()
+#     print(D_edit)
+    D_edit['y_log_return'] = np.log(D_edit['y']+1)
+    
+    
+    
+    
+     
+STEP 4: SPLIT THE DATA
+    train = D_edit[0:int(len(D_edit) * .80)]
+    test = D_edit[int(len(D_edit) * .80):]
+    columns = ['y_1', 'y_2', 'y_3', 'y_4', 'y_5', 'y_6', 'y_7', 'y_8',
+       'y_9', 'y_10', 'y_11', 'y_12', 'y_ewm2', 'y_ewm3', 'y_ewm4', 'y_ewm5',
+       'y_ewm6', 'y_ewm_std3', 'y_ewm_std4', 'y_ewm_std5', 'y_ewm_std6','y_log_return']
+
+    X1_train = train.loc[:,columns]
+    # X1_train = train.loc[:,columns].drop(['ds'],axis=1)
+    y1_train = train.y
+    X1_test = test.loc[:,columns]
+    # X1_test = test.loc[:,columns].drop(['ds'],axis=1)
+    y1_test = test.y
+    
+STEP 5:      MODEL IT OUTSIDE THE FUNCTION.
+model = RandomForestRegressor(max_depth=5,n_estimators=50) #hyperparams would vary according to dataset. 
+fit = model.fit(X1_train,y1_train)      
+    
+    
+ 
+STEP 6: MAKING IT RECURSIVE 
+( COMPLETE CODE )
+
+%%time 
+for i in D_dict:
+    D_edit = D_dict[i]
+    D_edit = pd.DataFrame(data=D_edit)
+    col = D_edit['y']
+    for j in range(1,13):
+        D_edit['y_'+str(j)] = col.shift(j)
+#     print(D_edit)
+        for k in range(2,7):
+            D_edit['y_ewm'+str(k)] = col.ewm(com=k).mean()
+            for l in range(3,7):
+                D_edit['y_ewm_std'+str(l)] = col.ewm(com=l).std()
+#     print(D_edit)
+    D_edit['y_log_return'] = np.log(D_edit['y']+1)
+    D_edit = D_edit.fillna(D_edit.mean())
+#     print(D_edit)
+    train = D_edit[0:int(len(D_edit) * .80)]
+    test = D_edit[int(len(D_edit) * .80):]
+#     print(test)
+
+    columns = ['y_1', 'y_2', 'y_3', 'y_4', 'y_5', 'y_6', 'y_7', 'y_8',
+       'y_9', 'y_10', 'y_11', 'y_12', 'y_ewm2', 'y_ewm3', 'y_ewm4', 'y_ewm5',
+       'y_ewm6', 'y_ewm_std3', 'y_ewm_std4', 'y_ewm_std5', 'y_ewm_std6','y_log_return']
+
+    X1_train = train.loc[:,columns]
+    # X1_train = train.loc[:,columns].drop(['ds'],axis=1)
+    y1_train = train.y
+    X1_test = test.loc[:,columns]
+    # X1_test = test.loc[:,columns].drop(['ds'],axis=1)
+    y1_test = test.y
+#     print(X1_test)
+
+    def Forecast_24(row):
+    #     row=row.values
+        fv=[]
+        da = list(D_edit ['y'])
+        def Newrow(row,FC):
+            ew=pd.DataFrame(da)
+            y_ewm2=ew.ewm(com=2).mean().iloc[-1][0]
+            y_ewm3=ew.ewm(com=3).mean().iloc[-1][0]
+            y_ewm4=ew.ewm(com=4).mean().iloc[-1][0]
+            y_ewm5=ew.ewm(com=5).mean().iloc[-1][0]
+            y_ewm6=ew.ewm(com=6).mean().iloc[-1][0]
+
+
+            ew_st = pd.DataFrame(da)
+            y_ewm_std3 = ew_st.ewm(com=3).std().iloc[-1][0]
+            y_ewm_std4 = ew_st.ewm(com=4).std().iloc[-1][0]
+            y_ewm_std5 = ew_st.ewm(com=5).std().iloc[-1][0]
+            y_ewm_std6 = ew_st.ewm(com=6).std().iloc[-1][0]
+
+
+            y_log_return=row[-1] #log return
+            y_log_return = np.log(FC+1)
+
+
+            week_back=list(row[0:12]) #lag feature update
+            week_back.insert(0,int(FC))
+            week_back.remove(week_back[-1])
+            week_back=[int(i) for i in week_back]
+
+
+            new_row=[*week_back,y_ewm2,y_ewm3,
+                     y_ewm4,y_ewm5,
+                     y_ewm6,
+                     y_ewm_std3,y_ewm_std4,
+                     y_ewm_std5,y_ewm_std6,
+                     y_log_return]
+
+            return new_row
+        for i in range(0,24):
+            pred=model.predict([row])
+            fv.append(pred)
+            da.append(pred)
+    #         print(pred)
+            nrow = Newrow(row,int(pred))
+            row=nrow
+    #         print(nrow)
+            
+
+        fv=[int(i) for i in fv]
+    #     da.append(fv)
+        return fv
+    D_edit= D_edit.fillna(D_edit.mean())
+    row = D_edit.iloc[-12]
+    row = row[columns]
+#     print(row)
+    FC = Forecast_24(row)
+#     print(FC)
+   
+   
+   
+   
+STEP 6: ERROR METRIC (SMAPE)   
+   
+    def SMAPE():
+#     smape_list_RF = []
+        if len(y1_test)>24:
+            sm = FC[:24]
+        else:
+            sm = FC[:len(y1_test)]
+#             print(type(sm))
+            error = y1_test - sm
+#             print(error)
+            absolute_error = abs(error)
+#             print(absolute_error)
+            Smape = (2*absolute_error)/((abs(y1_test.astype(float)))+abs((sm)))
+
+#             print(Smape)
+            Smape = Smape.rename(columns = {'y':'smape'})
+            print(Smape)
+    
+    
+    
