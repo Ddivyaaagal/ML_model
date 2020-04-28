@@ -31,7 +31,7 @@ class fb_proph:
             forecast = m.predict(future)
             F = forecast[['ds', 'yhat','yhat_upper','yhat_lower']]
 #             print(F)
-            FF = F[F['ds'] < '2019-10-14']
+            FF = F[F['ds'] < '2019-10-14'] #use your required date.
 #             print(FF)
             D1 = FF[['ds','yhat']]    #as i needed these two columns only for calculating the error. i filtered the two out of four.
 #             print(D1)
